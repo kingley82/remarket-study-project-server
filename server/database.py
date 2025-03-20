@@ -79,6 +79,11 @@ class Db:
                     res = await cursor.fetchall()
                     return res
     
+    async def search_ads(self, word, count, offset):
+        async with self.lock, self.db.execute("SELECT * FROM ADS WHERE STATUS = 'active' AND Title LIKE '%' || ? || '%' LIMIT ?, ?;", (word, offset, count,)) as cursor:
+            res = await cursor.fetchall()
+            return res
+    
     async def get_dialog(self, id):
         async with self.lock, self.db.execute("SELECT * FROM DIALOGS WHERE ID = ?;", (id,)) as cursor:
             res = await cursor.fetchone()
@@ -130,5 +135,6 @@ class Db:
         async with self.lock, self.db.execute("UPDATE users SET Password = ? WHERE Username = ?;", (new_password, uname,)) as cursor:
             await self.wb.commit()
             return
+        
 
     # async with self.lock, self.db.execute() as cursor:

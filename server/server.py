@@ -3,11 +3,9 @@ import aiosqlite as sql
 import websockets
 import json
 import os
-
 import websockets.exceptions
 import database
 from etypes import *
-import uuid
 from models import *
 
 connections = {} #deviceid: websocket
@@ -22,11 +20,14 @@ db = database.Db(db_path)
 async def echo(websocket, path):
     try:
         async for message in websocket:
-            print("Received:", message)
             data = json.loads(message)
             payload = data[PAYLOAD]
             deviceid = data[DEVICE_ID]
             client_us = data[USERNAME]
+            if data[EVENT] == AD_POST:
+                print(f"New ad with title {payload[TITLE]}\n")
+            else:
+                print(f"Received: {message}")
             if data[EVENT] == ACCOUNT_SIGNUP:
                 uname = payload[USERNAME]
                 passw = payload[PASSWORD]
@@ -91,6 +92,17 @@ async def echo(websocket, path):
                     
                     response = [await standartize(x) for x in res]
                     await websocket.send(json.dumps({EVENT: GET_ADS, PAYLOAD: {ADS: response}}))
+            if data[EVENT] == SEARCH:
+                word = payload[SEARCH]
+                count = payload[COUNT]
+                offset = payload[OFFSET]
+                async with db:
+                    res = await db.search_ads(word, count, offset)
+                    async def standartize(res):
+                        user = await db.get_user_by_id(res[6])
+                        return Ad(res, User(user[0], user[1]).tojson()).standartize().tojson()
+                    response = [await standartize(x) for x in res]
+                    await websocket.send(json.dumps({EVENT: GET_ADS, PAYLOAD: {ADS: response}}))
             if data[EVENT] == AD_STATUS_CHANGE:
                 id = payload[ID]
                 async with db:
@@ -152,7 +164,6 @@ async def echo(websocket, path):
                 else:
                     await websocket.send(json.dumps({EVENT: ERROR, PAYLOAD: {ERROR: ERROR_INVALID_REQUEST}}))
             if data[EVENT] == GET_DIALOGS:
-                deviceid = payload[DEVICE_ID]
                 if deviceid in users:
                     async with db:
                         res = await db.get_user_by_name(users[deviceid])
@@ -169,11 +180,10 @@ async def echo(websocket, path):
                                 dialogs[last_message[1]] = Dialog(d[0], member1, member2, "Чат открыт").tojson()
                             else:
                                 dialogs[last_message[1]] = Dialog(d[0], member1, member2, last_message[0]).tojson()
-                        dialogs = dict(sorted(dialogs.items())).values
+                        dialogs = list(dict(sorted(dialogs.items())).values())[::-1]
                         await websocket.send(json.dumps({EVENT: GET_DIALOGS, PAYLOAD: {DIALOGS: dialogs}}))
                 else: await websocket.send(json.dumps({EVENT: ERROR, PAYLOAD: {ERROR: ERROR_INVALID_REQUEST}}))
             if data[EVENT] == ACCOUNT_LOGOUT:
-                deviceid = payload[DEVICE_ID]
                 if deviceid in users:
                     uname = users[deviceid]
                     if uname in devices:
@@ -184,7 +194,6 @@ async def echo(websocket, path):
                 else: await websocket.send(json.dumps({EVENT: ACCOUNT_LOGOUT, PAYLOAD: {STATUS: ERROR}}))
             if data[EVENT] == CHANGE_NAME:
                 newname = payload[USERNAME]
-                deviceid = payload[DEVICE_ID]
                 if deviceid in users:
                     async with db:
                         res = await db.get_user_by_name(newname)
@@ -245,8 +254,9 @@ async def echo(websocket, path):
 
 
 print("Starting server")
-#192.168.224.46
-start_server = websockets.serve(echo, "192.168.0.108", 8088)
-asyncio.get_event_loop().run_until_complete(start_server)
-asyncio.get_event_loop().run_forever()
 
+async def main():
+    start_server = await websockets.serve(echo, "192.168.0.108", 8088, max_size=100*1024*1024)
+    await start_server.wait_closed()
+
+asyncio.run(main())

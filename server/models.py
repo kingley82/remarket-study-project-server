@@ -1,4 +1,4 @@
-from json import JSONEncoder, dumps, loads
+from json import JSONEncoder, loads
 
 class Encoder(JSONEncoder):
     def default(self, o):
@@ -8,7 +8,7 @@ class Encoder(JSONEncoder):
         return self.default(self)
 
 class User(Encoder):
-    def __init__(self, id, name, ads=[]):
+    def __init__(self, id, name):
         self.id = id
         self.username = name
 
