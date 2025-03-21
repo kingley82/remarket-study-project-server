@@ -133,7 +133,7 @@ class Db:
     
     async def change_password(self, uname, new_password):
         async with self.lock, self.db.execute("UPDATE users SET Password = ? WHERE Username = ?;", (new_password, uname,)) as cursor:
-            await self.wb.commit()
+            await self.db.commit()
             return
         
 
