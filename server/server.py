@@ -55,7 +55,9 @@ async def echo(websocket, path):
                         if uname not in devices:
                             devices[uname] = [deviceid]
                         else:
-                            devices[uname].append(deviceid)
+                            if deviceid not in devices[uname]:
+                                devices[uname].append(deviceid)
+                        print(devices)
                         await websocket.send(json.dumps({EVENT: ACCOUNT_SIGNIN, PAYLOAD: {USER: user.tojson()}}))
             if data[EVENT] == AD_POST:
                 title = payload[TITLE].strip()
