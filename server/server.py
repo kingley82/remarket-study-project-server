@@ -69,13 +69,14 @@ async def echo(websocket, path):
                     if title == "" or phone == "" or description == "" or status not in ['active', 'closed'] or price < 0 or images == [] or not await db.check_user_exists_by_id(seller):
                         await websocket.send(json.dumps({EVENT: ERROR, PAYLOAD: {ERROR: ERROR_INVALID_REQUEST}}))
                     else:
-                        ad_id = await db.create_ad(title, price, phone, description, json.dumps(images), seller, status)
+                        ad_id = await db.create_ad(title, price, phone, description, seller, status)
+                        await db.create_images(ad_id, json.dumps(images))
                         await websocket.send(json.dumps({EVENT: AD_POST, PAYLOAD: {ID: ad_id}}))
             if data[EVENT] == GET_AD:
                 id = payload[ID]
                 async with db:
                     res = await db.get_ad_by_id(id)
-                    seller_res = await db.get_user_by_id(res[6])
+                    seller_res = await db.get_user_by_id(res[5])
 
                     ad = Ad(res, User(seller_res[0], seller_res[1]).tojson()).standartize().tojson()
                     await websocket.send(json.dumps({EVENT: GET_AD, PAYLOAD: {AD: ad}}))
@@ -87,7 +88,7 @@ async def echo(websocket, path):
                 async with db:
                     res = await db.get_ads(user_id, count, offset, active)
                     async def standartize(res):
-                        user = await db.get_user_by_id(res[6])
+                        user = await db.get_user_by_id(res[5])
                         return Ad(res, User(user[0], user[1]).tojson()).standartize().tojson()
                     
                     response = [await standartize(x) for x in res]
@@ -99,7 +100,7 @@ async def echo(websocket, path):
                 async with db:
                     res = await db.search_ads(word, count, offset)
                     async def standartize(res):
-                        user = await db.get_user_by_id(res[6])
+                        user = await db.get_user_by_id(res[5])
                         return Ad(res, User(user[0], user[1]).tojson()).standartize().tojson()
                     response = [await standartize(x) for x in res]
                     await websocket.send(json.dumps({EVENT: GET_ADS, PAYLOAD: {ADS: response}}))
@@ -107,7 +108,7 @@ async def echo(websocket, path):
                 id = payload[ID]
                 async with db:
                     res = await db.get_ad_by_id(id)
-                    user = await db.get_user_by_id(res[6])
+                    user = await db.get_user_by_id(res[5])
                     ad = Ad(res, User(user[0], user[1]).tojson()).standartize()
                     if ad.status == None:
                         await websocket.send(json.dumps({EVENT: ERROR, PAYLOAD: {ERROR: ERROR_INVALID_REQUEST}}))
@@ -210,7 +211,6 @@ async def echo(websocket, path):
             if data[EVENT] == CHANGE_PASSWORD:
                 old_password = payload[PASSWORD][0]
                 new_password = payload[PASSWORD][1]
-                print(users)
                 async with db:
                     if deviceid in users:
                         if users[deviceid] == client_us:

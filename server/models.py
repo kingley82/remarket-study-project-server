@@ -23,8 +23,8 @@ class Ad(Encoder):
             self.phone = raw[3]
             self.description = raw[4]
             self.seller = user
-            self.status = raw[7] #active/closed
-            self.images = raw[5]
+            self.status = raw[6] #active/closed
+            self.images = raw[7]
     def standartize(self):
         self.images = loads(self.images)
         return self

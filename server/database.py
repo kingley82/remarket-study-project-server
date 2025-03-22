@@ -43,15 +43,21 @@ class Db:
             res = await cursor.fetchone()
             return res
     
-    async def create_ad(self, title, price, phone, description, images, seller, status):
-        async with self.lock, self.db.execute("INSERT INTO ADS(Title, Price, Phone, Description, Images, Seller, Status) VALUES (?,?,?,?,?,?,?);",
-                                              (title, price, phone, description, images, seller, status,)) as cursor:
+    async def create_ad(self, title, price, phone, description, seller, status):
+        async with self.lock, self.db.execute("INSERT INTO ADS(Title, Price, Phone, Description, Seller, Status) VALUES (?,?,?,?,?,?);",
+                                              (title, price, phone, description, seller, status,)) as cursor:
             res = cursor.lastrowid
             await self.db.commit()
             return res
     
+    async def create_images(self, ad_id, images):
+        async with self.lock, self.db.execute("INSERT INTO IMAGES(Images, Ad) VALUES (?,?);", (images, ad_id,)) as cursor:
+            res = cursor.lastrowid
+            await self.db.commit()
+            return res
+            
     async def get_ad_by_id(self, id):
-        async with self.lock, self.db.execute("SELECT * FROM ADS WHERE ID = ?;", (id,)) as cursor:
+        async with self.lock, self.db.execute("SELECT ADS.*, IMAGES.Images FROM ADS JOIN IMAGES ON IMAGES.Ad = ADS.ID WHERE ADS.ID = ?;", (id,)) as cursor:
             res = await cursor.fetchone()
             return res
     
@@ -60,27 +66,28 @@ class Db:
             await self.db.commit()
 
     async def get_ads(self, id, count, offset, onlyActive):
+        #SELECT ADS.*, IMAGES.Image FROM ADS JOIN IMAGES ON IMAGES.Ad = ADS.ID;
         if onlyActive:
             if id == -1:
-                async with self.lock, self.db.execute("SELECT * FROM ADS WHERE STATUS = 'active' LIMIT ?, ?;", (offset, count,)) as cursor:
+                async with self.lock, self.db.execute("SELECT ADS.*, IMAGES.Images FROM ADS JOIN IMAGES ON IMAGES.Ad = ADS.ID WHERE ADS.STATUS = 'active' LIMIT ?, ?;", (offset, count,)) as cursor:
                     res = await cursor.fetchall()
                     return res
             else:
-                async with self.lock, self.db.execute("SELECT * FROM ADS WHERE (SELLER = ? AND STATUS = 'active') LIMIT ?, ?;", (id, offset, count,)) as cursor:
+                async with self.lock, self.db.execute("SELECT ADS.*, IMAGES.Images FROM ADS JOIN IMAGES ON IMAGES.Ad = ADS.ID WHERE (ADS.SELLER = ? AND ADS.STATUS = 'active') LIMIT ?, ?;", (id, offset, count,)) as cursor:
                     res = await cursor.fetchall()
                     return res
         else:
             if id == -1:
-                async with self.lock, self.db.execute("SELECT * FROM ADS LIMIT ?, ?;", (offset, count,)) as cursor:
+                async with self.lock, self.db.execute("SELECT ADS.*, IMAGES.Images FROM ADS JOIN IMAGES ON IMAGES.Ad = ADS.ID LIMIT ?, ?;", (offset, count,)) as cursor:
                     res = await cursor.fetchall()
                     return res
             else:
-                async with self.lock, self.db.execute("SELECT * FROM ADS WHERE SELLER = ? LIMIT ?, ?;", (id, offset, count,)) as cursor:
+                async with self.lock, self.db.execute("SELECT ADS.*, IMAGES.Images FROM ADS JOIN IMAGES ON IMAGES.Ad = ADS.ID WHERE ADS.SELLER = ? LIMIT ?, ?;", (id, offset, count,)) as cursor:
                     res = await cursor.fetchall()
                     return res
     
     async def search_ads(self, word, count, offset):
-        async with self.lock, self.db.execute("SELECT * FROM ADS WHERE STATUS = 'active' AND Title LIKE '%' || ? || '%' LIMIT ?, ?;", (word, offset, count,)) as cursor:
+        async with self.lock, self.db.execute("SELECT ADS.*, IMAGES.Images FROM ADS JOIN IMAGES ON IMAGES.Ad = ADS.ID WHERE ADS.STATUS = 'active' AND ADS.Title LIKE '%' || ? || '%' LIMIT ?, ?;", (word, offset, count,)) as cursor:
             res = await cursor.fetchall()
             return res
     
