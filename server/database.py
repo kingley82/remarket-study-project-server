@@ -69,7 +69,7 @@ class Db:
         #SELECT ADS.*, IMAGES.Image FROM ADS JOIN IMAGES ON IMAGES.Ad = ADS.ID;
         if onlyActive:
             if id == -1:
-                async with self.lock, self.db.execute("SELECT ADS.*, IMAGES.Images FROM ADS JOIN IMAGES ON IMAGES.Ad = ADS.ID WHERE ADS.STATUS = 'active' LIMIT ?, ?;", (offset, count,)) as cursor:
+                async with self.lock, self.db.execute("SELECT ADS.*, IMAGES.Images FROM ADS JOIN IMAGES ON IMAGES.Ad = ADS.ID WHERE ADS.STATUS = 'active' LIMIT ?, ? ;", (offset, count,)) as cursor:
                     res = await cursor.fetchall()
                     return res
             else:

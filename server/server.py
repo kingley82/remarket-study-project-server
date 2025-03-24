@@ -3,6 +3,7 @@ import aiosqlite as sql
 import websockets
 import json
 import os
+import time
 import websockets.exceptions
 import database
 from etypes import *
@@ -21,6 +22,8 @@ async def echo(websocket, path):
     try:
         async for message in websocket:
             data = json.loads(message)
+            if EVENT not in data or PAYLOAD not in data or DEVICE_ID not in data or USERNAME not in data:
+                return await websocket.send(json.dumps({EVENT: ERROR, PAYLOAD: {ERROR: ERROR_INVALID_REQUEST}}))
             payload = data[PAYLOAD]
             deviceid = data[DEVICE_ID]
             client_us = data[USERNAME]
@@ -93,7 +96,7 @@ async def echo(websocket, path):
                         return Ad(res, User(user[0], user[1]).tojson()).standartize().tojson()
                     
                     response = [await standartize(x) for x in res]
-                    await websocket.send(json.dumps({EVENT: GET_ADS, PAYLOAD: {ADS: response}}))
+                    await websocket.send(json.dumps({EVENT: GET_ADS, PAYLOAD: {ADS: response[::-1]}}))
             if data[EVENT] == SEARCH:
                 word = payload[SEARCH]
                 count = payload[COUNT]
@@ -179,7 +182,7 @@ async def echo(websocket, path):
                             member2 = User(member2[0], member2[1]).tojson()
                             last_message = await db.get_last_message(d[0])
                             if last_message == None:
-                                dialogs[last_message[1]] = Dialog(d[0], member1, member2, "Чат открыт").tojson()
+                                dialogs[int(time.time())] = Dialog(d[0], member1, member2, "Чат открыт").tojson()
                             else:
                                 dialogs[last_message[1]] = Dialog(d[0], member1, member2, last_message[0]).tojson()
                         dialogs = list(dict(sorted(dialogs.items())).values())[::-1]
