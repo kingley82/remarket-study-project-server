@@ -18,7 +18,7 @@ path = os.path.dirname(__file__)
 db_path = os.path.join(path, "db.db")
 db = database.Db(db_path)
 
-async def echo(websocket, path):
+async def echo(websocket, path=None):
     try:
         async for message in websocket:
             data = json.loads(message)
@@ -27,6 +27,7 @@ async def echo(websocket, path):
             payload = data[PAYLOAD]
             deviceid = data[DEVICE_ID]
             client_us = data[USERNAME]
+            client_uid = data[UID]
             if data[EVENT] == AD_POST:
                 print(f"New ad with title {payload[TITLE]}\n")
             else:
@@ -94,9 +95,12 @@ async def echo(websocket, path):
                     async def standartize(res):
                         user = await db.get_user_by_id(res[5])
                         return Ad(res, User(user[0], user[1]).tojson()).standartize().tojson()
-                    
                     response = [await standartize(x) for x in res]
-                    await websocket.send(json.dumps({EVENT: GET_ADS, PAYLOAD: {ADS: response[::-1]}}))
+                    if user_id == -1:
+                        await websocket.send(json.dumps({EVENT: GET_ADS, PAYLOAD: {ADS: response[::-1]}}))
+                    else:
+                        res = await db.get_closed_ads(user_id, count, offset)
+                        await websocket.send(json.dumps({EVENT: GET_ADS, PAYLOAD: {ADS: response[::-1], COUNT: res}}))
             if data[EVENT] == SEARCH:
                 word = payload[SEARCH]
                 count = payload[COUNT]
@@ -251,6 +255,27 @@ async def echo(websocket, path):
                             await websocket.send(json.dumps({EVENT: ERROR, PAYLOAD: {ERROR: ERROR_INVALID_REQUEST}}))
                     else:
                         await websocket.send(json.dumps({EVENT: ERROR, PAYLOAD: {ERROR: ERROR_INVALID_REQUEST}}))
+            if data[EVENT] == PAY:
+                adid = payload[ID]
+                async with db:
+                    if deviceid in users:
+                        if users[deviceid] == client_us:
+                            ad = await db.get_ad_by_id(adid)
+                            if ad == None or ad[6] == "closed":
+                                await websocket.send(json.dumps({EVENT: ERROR, PAYLOAD: {ERROR: ERROR_AD_UNACCESSIBLE}}))
+                            else:
+                                await db.change_ad_status(adid, "closed")
+                                res = await db.get_dialog_by_members(client_uid, ad[5])
+                                if res == None:
+                                    res = await db.create_dialog(client_uid, ad[5])
+                                if type(res) in [list, tuple]:
+                                    res = res[0]
+                                await db.add_message(res, f"Оплачен товар по объявлению {ad[1]}", client_uid)
+                                await websocket.send(json.dumps({EVENT: PAY, PAYLOAD: {}}))
+                        else:
+                            await websocket.send(json.dumps({EVENT: ERROR, PAYLOAD: {ERROR: ERROR_INVALID_REQUEST}}))
+                    else:
+                        await websocket.send(json.dumps({EVENT: ERROR, PAYLOAD: {ERROR: ERROR_INVALID_REQUEST}}))
     except websockets.exceptions.ConnectionClosedError:
         pass
             #websockets.exceptions.ConnectionClosedError: no close frame received or sent
@@ -260,7 +285,7 @@ async def echo(websocket, path):
 print("Starting server")
 
 async def main():
-    start_server = await websockets.serve(echo, "192.168.0.108", 8088, max_size=100*1024*1024)
+    start_server = await websockets.serve(echo, "192.168.0.109", 8088, max_size=100*1024*1024)
     await start_server.wait_closed()
 
 asyncio.run(main())

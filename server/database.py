@@ -86,6 +86,11 @@ class Db:
                     res = await cursor.fetchall()
                     return res
     
+    async def get_closed_ads(self, uid, count, offset):
+        async with self.lock, self.db.execute("SELECT ADS.*, IMAGES.Images FROM ADS JOIN IMAGES ON IMAGES.Ad = ADS.ID WHERE (ADS.SELLER = ? AND ADS.STATUS = 'closed') LIMIT ?, ?;", (uid, offset, count,)) as cursor:
+                res = await cursor.fetchall()
+                return len(res)
+
     async def search_ads(self, word, count, offset):
         async with self.lock, self.db.execute("SELECT ADS.*, IMAGES.Images FROM ADS JOIN IMAGES ON IMAGES.Ad = ADS.ID WHERE ADS.STATUS = 'active' AND ADS.Title LIKE '%' || ? || '%' LIMIT ?, ?;", (word, offset, count,)) as cursor:
             res = await cursor.fetchall()
