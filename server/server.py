@@ -32,6 +32,9 @@ async def echo(websocket, path=None):
                 print(f"New ad with title {payload[TITLE]}\n")
             else:
                 print(f"Received: {message}")
+
+
+
             if data[EVENT] == ACCOUNT_SIGNUP:
                 uname = payload[USERNAME]
                 passw = payload[PASSWORD]
@@ -81,10 +84,13 @@ async def echo(websocket, path=None):
                 id = payload[ID]
                 async with db:
                     res = await db.get_ad_by_id(id)
-                    seller_res = await db.get_user_by_id(res[5])
+                    if res != None:
+                        seller_res = await db.get_user_by_id(res[5])
 
-                    ad = Ad(res, User(seller_res[0], seller_res[1]).tojson()).standartize().tojson()
-                    await websocket.send(json.dumps({EVENT: GET_AD, PAYLOAD: {AD: ad}}))
+                        ad = Ad(res, User(seller_res[0], seller_res[1]).tojson()).standartize().tojson()
+                        await websocket.send(json.dumps({EVENT: GET_AD, PAYLOAD: {AD: ad}}))
+                    else:
+                        await websocket.send(json.dumps({EVENT: ERROR, PAYLOAD: {ERROR: ERROR_AD_UNACCESSIBLE}}))
             if data[EVENT] == GET_ADS:
                 user_id = payload[USER]
                 count = payload[COUNT]
@@ -160,8 +166,8 @@ async def echo(websocket, path=None):
                 if deviceid in users:
                     async with db:
                         res = await db.get_dialog(dialog)
-                        uid = await db.get_user_by_name(client_us)
-                        if uid[0] in [res[1], res[2]]:
+                        #uid = await db.get_user_by_name(client_us)
+                        if client_uid in [res[1], res[2]]:
                             res = await db.get_messages_from_dialog(dialog)
                             messages = []
                             for i in res:
@@ -175,9 +181,8 @@ async def echo(websocket, path=None):
             if data[EVENT] == GET_DIALOGS:
                 if deviceid in users:
                     async with db:
-                        res = await db.get_user_by_name(users[deviceid])
-                        uid = res[0]
-                        raw_dialogs = await db.get_dialogs_of_uid(uid)
+                        #res = await db.get_user_by_name(users[deviceid])
+                        raw_dialogs = await db.get_dialogs_of_uid(client_uid)
                         dialogs = {}
                         for d in raw_dialogs:
                             member1 = await db.get_user_by_id(d[1])
@@ -234,23 +239,26 @@ async def echo(websocket, path=None):
             if data[EVENT] == NEW_MESSAGE:
                 message = payload[TEXT]
                 dialog = payload[DIALOG]
-                sender = payload[SENDER]
+                #sender = payload[SENDER]
                 async with db:
                     if deviceid in users:
                         if users[deviceid] == client_us:
-                            res = await db.get_user_by_id(sender)
-                            sender_user = User(res[0], res[1])
-                            res = await db.add_message(dialog, message, sender)
-                            res = await db.get_message(res)
-                            msg = Message(res[0], res[1], res[2], sender_user.tojson(), res[4])
-                            await websocket.send(json.dumps({EVENT: NEW_MESSAGE, PAYLOAD: {MESSAGE: msg.tojson()}}))
-                            res = await db.get_dialog(msg.dialog)
-                            receiver = res[1] if sender_user.id == res[2] else res[2]
-                            receiver = await db.get_user_by_id(receiver)
-                            receiver = receiver[1]
-                            if receiver in devices:
-                                for device in devices[receiver]:
-                                    await connections[device].send(json.dumps({EVENT: NEW_MESSAGE, PAYLOAD: {MESSAGE: msg.tojson()}}))
+                            res = await db.get_user_by_id(client_uid)
+                            if res == None:
+                                await websocket.send(json.dumps({EVENT: ERROR, PAYLOAD: {ERROR: ERROR_INVALID_REQUEST}}))
+                            else:
+                                sender_user = User(res[0], res[1])
+                                res = await db.add_message(dialog, message, client_uid)
+                                res = await db.get_message(res)
+                                msg = Message(res[0], res[1], res[2], sender_user.tojson(), res[4])
+                                await websocket.send(json.dumps({EVENT: NEW_MESSAGE, PAYLOAD: {MESSAGE: msg.tojson()}}))
+                                res = await db.get_dialog(msg.dialog)
+                                receiver = res[1] if sender_user.id == res[2] else res[2]
+                                receiver = await db.get_user_by_id(receiver)
+                                receiver = receiver[1]
+                                if receiver in devices:
+                                    for device in devices[receiver]:
+                                        await connections[device].send(json.dumps({EVENT: NEW_MESSAGE, PAYLOAD: {MESSAGE: msg.tojson()}}))
                         else:
                             await websocket.send(json.dumps({EVENT: ERROR, PAYLOAD: {ERROR: ERROR_INVALID_REQUEST}}))
                     else:
