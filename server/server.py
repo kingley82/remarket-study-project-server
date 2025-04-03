@@ -244,21 +244,25 @@ async def echo(websocket, path=None):
                     if deviceid in users:
                         if users[deviceid] == client_us:
                             res = await db.get_user_by_id(client_uid)
-                            if res == None:
+                            if res == None or res[1] != client_us:
                                 await websocket.send(json.dumps({EVENT: ERROR, PAYLOAD: {ERROR: ERROR_INVALID_REQUEST}}))
                             else:
-                                sender_user = User(res[0], res[1])
-                                res = await db.add_message(dialog, message, client_uid)
-                                res = await db.get_message(res)
-                                msg = Message(res[0], res[1], res[2], sender_user.tojson(), res[4])
-                                await websocket.send(json.dumps({EVENT: NEW_MESSAGE, PAYLOAD: {MESSAGE: msg.tojson()}}))
-                                res = await db.get_dialog(msg.dialog)
-                                receiver = res[1] if sender_user.id == res[2] else res[2]
-                                receiver = await db.get_user_by_id(receiver)
-                                receiver = receiver[1]
-                                if receiver in devices:
-                                    for device in devices[receiver]:
-                                        await connections[device].send(json.dumps({EVENT: NEW_MESSAGE, PAYLOAD: {MESSAGE: msg.tojson()}}))
+                                res = await db.get_dialog(dialog)
+                                if res == None:
+                                    await websocket.send(json.dumps({EVENT: ERROR, PAYLOAD: {ERROR: ERROR_INVALID_REQUEST}}))
+                                else:
+                                    sender_user = User(res[0], res[1])
+                                    res = await db.add_message(dialog, message, client_uid)
+                                    res = await db.get_message(res)
+                                    msg = Message(res[0], res[1], res[2], sender_user.tojson(), res[4])
+                                    await websocket.send(json.dumps({EVENT: NEW_MESSAGE, PAYLOAD: {MESSAGE: msg.tojson()}}))
+                                    res = await db.get_dialog(msg.dialog)
+                                    receiver = res[1] if sender_user.id == res[2] else res[2]
+                                    receiver = await db.get_user_by_id(receiver)
+                                    receiver = receiver[1]
+                                    if receiver in devices:
+                                        for device in devices[receiver]:
+                                            await connections[device].send(json.dumps({EVENT: NEW_MESSAGE, PAYLOAD: {MESSAGE: msg.tojson()}}))
                         else:
                             await websocket.send(json.dumps({EVENT: ERROR, PAYLOAD: {ERROR: ERROR_INVALID_REQUEST}}))
                     else:
@@ -272,13 +276,20 @@ async def echo(websocket, path=None):
                             if ad == None or ad[6] == "closed":
                                 await websocket.send(json.dumps({EVENT: ERROR, PAYLOAD: {ERROR: ERROR_AD_UNACCESSIBLE}}))
                             else:
+                                seller = ad[5]
+                                seller = await db.get_user_by_id(ad[5])
                                 await db.change_ad_status(adid, "closed")
                                 res = await db.get_dialog_by_members(client_uid, ad[5])
                                 if res == None:
                                     res = await db.create_dialog(client_uid, ad[5])
                                 if type(res) in [list, tuple]:
                                     res = res[0]
-                                await db.add_message(res, f"Оплачен товар по объявлению {ad[1]}", client_uid)
+                                res = await db.add_message(res, f"Оплачен товар по объявлению {ad[1]}", client_uid)
+                                res = await db.get_message(res)
+                                msg = Message(res[0], res[1], res[2], sender_user.tojson(), res[4])
+                                if seller in devices:
+                                    for device in devices[seller]:
+                                        await connections[device].send(json.dumps({EVENT: NEW_MESSAGE, PAYLOAD: {MESSAGE: msg.tojson()}}))
                                 await websocket.send(json.dumps({EVENT: PAY, PAYLOAD: {}}))
                         else:
                             await websocket.send(json.dumps({EVENT: ERROR, PAYLOAD: {ERROR: ERROR_INVALID_REQUEST}}))

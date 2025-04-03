@@ -2,4 +2,5 @@
 *.rar
 *.zip
 *.drawio
+*.bkp
 tests.py
