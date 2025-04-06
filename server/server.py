@@ -243,15 +243,15 @@ async def echo(websocket, path=None):
                 async with db:
                     if deviceid in users:
                         if users[deviceid] == client_us:
-                            res = await db.get_user_by_id(client_uid)
-                            if res == None or res[1] != client_us:
+                            user = await db.get_user_by_id(client_uid)
+                            if user == None or user[1] != client_us:
                                 await websocket.send(json.dumps({EVENT: ERROR, PAYLOAD: {ERROR: ERROR_INVALID_REQUEST}}))
                             else:
                                 res = await db.get_dialog(dialog)
                                 if res == None:
                                     await websocket.send(json.dumps({EVENT: ERROR, PAYLOAD: {ERROR: ERROR_INVALID_REQUEST}}))
                                 else:
-                                    sender_user = User(res[0], res[1])
+                                    sender_user = User(user[0], user[1])
                                     res = await db.add_message(dialog, message, client_uid)
                                     res = await db.get_message(res)
                                     msg = Message(res[0], res[1], res[2], sender_user.tojson(), res[4])
@@ -286,9 +286,10 @@ async def echo(websocket, path=None):
                                     res = res[0]
                                 res = await db.add_message(res, f"Оплачен товар по объявлению {ad[1]}", client_uid)
                                 res = await db.get_message(res)
-                                msg = Message(res[0], res[1], res[2], sender_user.tojson(), res[4])
+                                msg = Message(res[0], res[1], res[2], res[3], res[4])
                                 if seller in devices:
                                     for device in devices[seller]:
+                                        print("sending to seller")
                                         await connections[device].send(json.dumps({EVENT: NEW_MESSAGE, PAYLOAD: {MESSAGE: msg.tojson()}}))
                                 await websocket.send(json.dumps({EVENT: PAY, PAYLOAD: {}}))
                         else:
