@@ -27,6 +27,7 @@ class Db:
         async with self.lock, self.db.execute("INSERT INTO USERS(Username, Password) VALUES (?, ?);", (username, password,)) as cursor:
             res = cursor.lastrowid
             await self.db.commit()
+            return res
     
     async def valid_password(self, username, password):
         async with self.lock, self.db.execute("SELECT Password FROM USERS WHERE Username = ?;", (username,)) as cursor:
